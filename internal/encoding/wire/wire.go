@@ -82,13 +82,22 @@ func ConsumeField(b []byte) (Number, Type, int) {
 }
 
 func ConsumeFieldValue(num Number, typ Type, b []byte) int {
+	var n int
 	switch typ {
 	case VarintType:
-		_, n := ConsumeVarint(b)
-		return n
+		_, n = ConsumeVarint(b)
+	case Fixed32Type:
+		_, n = ConsumeFixed32(b)
+	case Fixed64Type:
+		_, n = ConsumeFixed64(b)
+	case BytesType:
+		_, n = ConsumeBytes(b)
+	case EndGroupType:
+		return errCodeEndGroup
 	default:
 		return errCodeReserved
 	}
+	return n
 }
 
 func ConsumeTag(b []byte) (Number, Type, int) {
@@ -102,6 +111,38 @@ func ConsumeTag(b []byte) (Number, Type, int) {
 		return 0, 0, errCodeFieldNumber
 	}
 	return num, typ, n
+}
+
+func ConsumeFixed32(b []byte) (uint32, int) {
+	if len(b) < 4 {
+		return 0, errCodeTruncated
+	}
+
+	v := uint32(b[0])<<0 | uint32(b[1])<<8 | uint32(b[2])<<16 | uint32(b[3])<<24
+	return v, 4
+}
+
+func ConsumeFixed64(b []byte) (uint64, int) {
+	if len(b) < 8 {
+		return 0, errCodeTruncated
+	}
+
+	v := uint64(b[0])<<0 | uint64(b[1])<<8 | uint64(b[2])<<16 | uint64(b[3])<<24 |
+		uint64(b[4])<<32 | uint64(b[5])<<40 | uint64(b[6])<<48 | uint64(b[7])<<56
+	return v, 8
+}
+
+func ConsumeBytes(b []byte) ([]byte, int) {
+	m, n := ConsumeVarint(b)
+	if n < 0 {
+		return nil, n
+	}
+
+	if m < uint64(len(b[n:])) {
+		return nil, errCodeTruncated
+	}
+
+	return b[n : n+int(m)], n + int(m)
 }
 
 func ConsumeVarint(b []byte) (uint64, int) {
